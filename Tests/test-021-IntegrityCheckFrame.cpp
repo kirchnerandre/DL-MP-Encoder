@@ -1,0 +1,1701 @@
+
+#include <stdio.h>
+#include <string>
+
+#include "Base/Buffer.h"
+#include "Base/Endianness.h"
+#include "IntegrityCheck/IntegrityCheckFrame.h"
+
+
+namespace
+{
+    constexpr uint32_t                                  packet_size         = 128u;
+    constexpr uint32_t                                  image_width         = 20u;
+    constexpr uint32_t                                  image_height        = 30u;
+    constexpr uint32_t                                  hash_columns        = 3u;
+    constexpr uint32_t                                  hash_rows           = 2u;
+
+    SHA512::SHA512_T<packet_size>                       sha_512_0a            { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x20, 0x9b, 0x28, 0x32, 0x79, 0xda, 0x05, 0xa5, 0xa8, 0x37, 0x3e, 0x35, 0x80, 0x0e, 0x29, 0x3e,
+                                                                                0x49, 0x0a, 0x6c, 0x8b, 0x54, 0xba, 0xea, 0x72, 0x7e, 0xb6, 0xb0, 0xde, 0x66, 0x90, 0x27, 0x31,
+                                                                                0x7b, 0x40, 0xc5, 0x69, 0xb7, 0x47, 0x6b, 0xa8, 0x62, 0x79, 0x3f, 0x78, 0xc4, 0xc0, 0x12, 0x5f,
+                                                                                0xde, 0xd9, 0x3a, 0x49, 0x9d, 0x3c, 0x06, 0x8a, 0xfc, 0x9b, 0x55, 0x1c, 0xf1, 0x36, 0xe2, 0xc3, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_0b            { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0xe4, 0x25, 0xb7, 0x65, 0x2a, 0xa4, 0x2c, 0x2f, 0x23, 0x2a, 0x79, 0xef, 0x92, 0xaf, 0xa5, 0xf2,
+                                                                                0xe0, 0xcb, 0x2d, 0x79, 0x21, 0x14, 0xb5, 0xbc, 0x82, 0x05, 0x7d, 0xf0, 0xd9, 0x94, 0x24, 0xd3,
+                                                                                0x73, 0xd7, 0x40, 0x87, 0xe1, 0xc1, 0x15, 0xc5, 0xb5, 0x13, 0x44, 0xf5, 0x56, 0xd3, 0xdd, 0x27,
+                                                                                0x84, 0x11, 0x04, 0xf3, 0xd8, 0xde, 0xd8, 0xef, 0x69, 0x8b, 0xf0, 0xbd, 0x29, 0xff, 0x14, 0x68, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_00            { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0xc4, 0xab, 0x0f, 0xac, 0x6a, 0x57, 0x03, 0x66, 0x9e, 0x62, 0x1c, 0xc3, 0xeb, 0xd3, 0xcc,
+                                                                                0x31, 0x7b, 0x2b, 0x93, 0xb8, 0x72, 0x8d, 0x6e, 0x40, 0x18, 0x98, 0x13, 0xf9, 0xe1, 0xd9, 0xc2,
+                                                                                0x40, 0x1c, 0x9d, 0xeb, 0xfa, 0x56, 0xe2, 0x19, 0x4b, 0xfd, 0xc7, 0x9a, 0xce, 0x56, 0x34, 0x5e,
+                                                                                0xd4, 0x29, 0x28, 0x36, 0x93, 0xb4, 0x0a, 0x79, 0x09, 0xd8, 0xa3, 0x76, 0x8f, 0xd9, 0x6f, 0x0f, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_01            { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0xd1, 0xaf, 0x8a, 0x9d, 0x55, 0x17, 0x36, 0xc3, 0x2f, 0x1e, 0xb2, 0x86, 0x2e, 0xe3, 0xe8, 0x1d,
+                                                                                0x51, 0xc9, 0xe8, 0x9c, 0x68, 0x3c, 0x14, 0x8b, 0x23, 0x52, 0x97, 0x53, 0x15, 0x08, 0xea, 0x64,
+                                                                                0x95, 0xbe, 0xe6, 0x98, 0x5b, 0x43, 0x42, 0x21, 0x86, 0xa9, 0x0f, 0xe8, 0xcf, 0x3f, 0x62, 0xaa,
+                                                                                0xd2, 0x30, 0xe3, 0xb6, 0x18, 0x22, 0x2e, 0x8b, 0xbb, 0xb3, 0x9c, 0xd1, 0xe7, 0x5d, 0xcb, 0x70, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_02            { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x7a, 0x6b, 0x32, 0x05, 0xcf, 0x18, 0x00, 0x2d, 0x7a, 0x97, 0x36, 0x7b, 0x2c, 0xd2, 0x94, 0x63,
+                                                                                0x3e, 0x61, 0x65, 0x1e, 0x1e, 0x2d, 0xfb, 0xdb, 0x66, 0xd0, 0x8e, 0xa7, 0x62, 0x53, 0xf3, 0x71,
+                                                                                0x8a, 0x97, 0xa8, 0x92, 0x12, 0x03, 0xca, 0xa1, 0xaa, 0x91, 0xf1, 0x15, 0xe4, 0xad, 0xbb, 0x29,
+                                                                                0x50, 0x68, 0x35, 0x2b, 0x11, 0xef, 0xd4, 0xdb, 0x6a, 0xe2, 0x44, 0x3a, 0x7e, 0xbf, 0xa0, 0xf9, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_03_invalid    { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x03,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_0c_invalid    { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_1a_invalid    { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x02,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
+
+    SHA512::SHA512_T<packet_size>                       sha_512_xx_invalid    { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_00             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_01             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x70,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_02             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0xe0,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_03             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x01, 0x50,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_03_modified    { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x01, 0x50,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_04             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x01, 0xc0,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_05             { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x02, 0x30,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_06_invalid     { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x02, 0xa0,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, };
+
+    BUFFER::BUFFER_T<packet_size>                       buffer_10_invalid     { 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x01,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                                                                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, };
+
+}
+
+
+bool test_parameters()
+{
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (frame.set(sha_512_0c_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set hash\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.set(sha_512_03_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set hash\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.set(sha_512_1a_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set hash\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.set(sha_512_xx_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set hash\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.set(buffer_06_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set data\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.set(buffer_10_invalid, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly set data\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0a, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (frame.get(actual_frame, 1u))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrectly got invalid frame number\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_columns_hash_first()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(sha_512_00, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_02, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_03, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_rows_hash_first()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(sha_512_0a, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 1)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0b, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 1)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 2)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 3)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_03, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 4)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 5)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 6)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 2)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_columns_buffer_first()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 1)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 2)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 3)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_03, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 4)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 5)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_00, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 2)
+     || (statistics.PacketHashTypeColumnTotal   != 1)
+     || (statistics.PacketHashTypeColumnGood    != 1)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 4)
+     || (statistics.PacketHashTypeColumnTotal   != 2)
+     || (statistics.PacketHashTypeColumnGood    != 2)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_02, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 6)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 3)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_rows_buffer_first()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+                                                                                0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 1)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 2)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 3)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_03, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 4)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 5)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0a, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 1)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0b, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 6)
+     || (statistics.PacketHashTypeColumnTotal   != 0)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 2)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_missing_buffer()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(sha_512_00, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 1)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 2)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_02, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0a, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 1)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0b, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 1)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 2)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 3)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 4)
+     || (statistics.PacketDataGood              != 4)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 1)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 5)
+     || (statistics.PacketDataGood              != 5)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 2)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+bool test_incorrect_buffer()
+{
+    constexpr uint8_t                                   expected_frame[]      { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+                                                                                0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+                                                                                0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                                                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+                                                                                0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04,
+
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+                                                                                0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,                                                 };
+
+    uint8_t                                             actual_frame[image_width * image_height]{};
+    Statistics::STATISTICS_T                            statistics{};
+
+    INTEGRITYCHECK::IntegrityCheckFrame<packet_size,
+                                        image_width,
+                                        image_height,
+                                        hash_columns,
+                                        hash_rows>      frame;
+
+    if (!frame.set(sha_512_00, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 1)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 2)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_02, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 0)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0a, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 1)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(sha_512_0b, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 0)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_00, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 1)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_01, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 2)
+     || (statistics.PacketDataGood              != 0)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 0)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_02, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 3)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 0)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_03_modified, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 4)
+     || (statistics.PacketDataGood              != 3)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 0)
+     || (statistics.PacketHashTypeColumnBad     != 1)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_04, statistics))
+    {
+
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 5)
+     || (statistics.PacketDataGood              != 4)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 1)
+     || (statistics.PacketHashTypeColumnBad     != 1)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 0))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.set(buffer_05, statistics))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to set\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if ((statistics.PacketDataTotal             != 6)
+     || (statistics.PacketDataGood              != 5)
+     || (statistics.PacketHashTypeColumnTotal   != 3)
+     || (statistics.PacketHashTypeColumnGood    != 2)
+     || (statistics.PacketHashTypeColumnBad     != 1)
+     || (statistics.PacketHashTypeRowTotal      != 2)
+     || (statistics.PacketHashTypeRowGood       != 1)
+     || (statistics.PacketHashTypeRowBad        != 1))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect statistics\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (!frame.get(actual_frame, 0u))
+    {
+        fprintf(stderr, "%s:%d:%s: Failed to get\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    if (memcmp(actual_frame, expected_frame, sizeof(expected_frame)))
+    {
+        fprintf(stderr, "%s:%d:%s: Incorrect frame\n", __FILE__, __LINE__, __FUNCTION__);
+        return false;
+    }
+
+    return true;
+}
+
+
+int main(int argc, char** argv)
+{
+    if (!test_parameters())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_columns_hash_first())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_rows_hash_first())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_columns_buffer_first())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_rows_buffer_first())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_missing_buffer())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    if (!test_incorrect_buffer())
+    {
+        fprintf(stderr, "%s:%d:%s: Test failed\n", __FILE__, __LINE__, __FUNCTION__);
+        return -1;
+    }
+
+    return 0;
+}

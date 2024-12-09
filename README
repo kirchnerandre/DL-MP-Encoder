@@ -1,0 +1,32 @@
+
+======
+Linux:
+======
+
+    How to build.
+
+    ./ci/ubuntu-22/build.sh
+
+    How to test.
+
+    ./ci/ubuntu-22/test.sh
+
+    How to demo.
+
+    ./ci/ubuntu-22/demo.sh
+
+========
+Windows:
+========
+
+    How to build.
+
+    ./ci/Windows-11/build.ps1
+
+    How to test.
+
+    ./ci/Windows-11/test.ps1
+
+    How to demo.
+
+    ./ci/Windows-11/demo.ps1
